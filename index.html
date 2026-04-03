@@ -251,10 +251,47 @@
 
         // --- Audio Engine ---
         let audioCtx;
+        let audioUnlocked = false;
+        let masterGain;
+        let compressor;
+
         function getAudioCtx() {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                // Master gain + compressor for louder, punchier output on phone speakers
+                compressor = audioCtx.createDynamicsCompressor();
+                compressor.threshold.value = -20;
+                compressor.knee.value = 10;
+                compressor.ratio.value = 4;
+                compressor.attack.value = 0.003;
+                compressor.release.value = 0.1;
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = 3.0;
+                masterGain.connect(compressor);
+                compressor.connect(audioCtx.destination);
+            }
             if (audioCtx.state === 'suspended') audioCtx.resume();
             return audioCtx;
+        }
+
+        function getOutput() {
+            getAudioCtx();
+            return masterGain;
+        }
+
+        // iOS/mobile Safari requires playing a silent buffer on first user gesture
+        // to permanently unlock audio playback
+        function unlockAudio() {
+            if (audioUnlocked) return;
+            const ctx = getAudioCtx();
+            const silentBuffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+            const source = ctx.createBufferSource();
+            source.buffer = silentBuffer;
+            source.connect(ctx.destination);
+            source.start(0);
+            source.onended = () => { audioUnlocked = true; };
+            // Also try resuming on iOS which suspends by default
+            ctx.resume();
         }
 
         const fartSounds = [
@@ -368,7 +405,7 @@
 
             osc.connect(filter);
             filter.connect(gainNode);
-            gainNode.connect(ctx.destination);
+            gainNode.connect(getOutput());
 
             osc.start(now);
             lfo.start(now);
@@ -401,7 +438,7 @@
 
             source.connect(filter);
             filter.connect(gainNode);
-            gainNode.connect(ctx.destination);
+            gainNode.connect(getOutput());
 
             source.start(now);
             source.stop(now + duration);
@@ -451,6 +488,8 @@
         }
 
         function doFart() {
+            unlockAudio();
+
             const fart = fartSounds[currentFart];
             document.getElementById('fartName').textContent = fart.name;
 
