@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chicken Herder</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; touch-action: none; }
+        body {
+            background: #2d5a1e;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            border: 3px solid #1a3a0e;
+            border-radius: 8px;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        #ui {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 16px;
+            z-index: 10;
+            text-align: center;
+            pointer-events: none;
+        }
+        #winScreen {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 24px;
+        }
+        #winScreen.show { display: flex; }
+        #winScreen h1 { font-size: 48px; color: #ffd700; margin-bottom: 10px; }
+        #winScreen p { margin-bottom: 20px; color: #ccc; }
+        #winScreen button {
+            padding: 12px 30px;
+            font-size: 20px;
+            border: none;
+            border-radius: 12px;
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+        }
+        #winScreen button:hover { background: #45a049; }
+        #instructions {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            color: #aaa;
+            padding: 6px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            z-index: 10;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">Chickens in coop: <span id="count">0</span> / <span id="total">0</span></div>
+    <canvas id="game"></canvas>
+    <div id="instructions">WASD / Arrow keys / Tap to move &bull; Herd chickens into the coop!</div>
+    <div id="winScreen">
+        <h1>🎉 You Win! 🎉</h1>
+        <p>All chickens are safe in the coop!</p>
+        <p id="winTime"></p>
+        <button onclick="restartGame()">Play Again</button>
+    </div>
+
+    <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    // Sizing
+    const W = 800, H = 600;
+    canvas.width = W;
+    canvas.height = H;
+
+    // Scale canvas to fit screen
+    function resize() {
+        const scaleX = window.innerWidth / W;
+        const scaleY = window.innerHeight / H;
+        const scale = Math.min(scaleX, scaleY, 1.5);
+        canvas.style.width = (W * scale) + 'px';
+        canvas.style.height = (H * scale) + 'px';
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Game state
+    let player, chickens, coop, speechBubble, gameWon, startTime, coopedCount;
+
+    // Coop definition
+    const COOP = { x: 620, y: 40, w: 160, h: 120 };
+
+    // Speech bubble state
+    let bubble = null;
+
+    function initGame() {
+        gameWon = false;
+        coopedCount = 0;
+        startTime = Date.now();
+        bubble = null;
+        document.getElementById('winScreen').classList.remove('show');
+
+        player = {
+            x: 100, y: 300, w: 32, h: 32, speed: 3.5,
+            vx: 0, vy: 0, facing: 'down'
+        };
+
+        chickens = [];
+
+        // Regular chickens - white/brown
+        const chickenColors = ['#f5f5dc', '#f5f5dc', '#d4a76a', '#f5f5dc', '#d4a76a', '#f5f5dc', '#d4a76a'];
+        const chickenNames = ['Clucky', 'Nugget', 'Drumstick', 'Pecker', 'Feathers', 'Eggbert', 'Waddles'];
+        for (let i = 0; i < 7; i++) {
+            chickens.push(createChicken(
+                100 + Math.random() * 500,
+                100 + Math.random() * 400,
+                chickenColors[i],
+                chickenNames[i],
+                false
+            ));
+        }
+
+        // Martini - the black chicken (hardest to catch!)
+        chickens.push(createChicken(
+            400 + Math.random() * 200,
+            300 + Math.random() * 200,
+            '#1a1a1a',
+            'Martini',
+            true
+        ));
+
+        document.getElementById('total').textContent = chickens.length;
+        document.getElementById('count').textContent = '0';
+    }
+
+    function createChicken(x, y, color, name, isMartini) {
+        return {
+            x, y, w: 24, h: 24,
+            vx: 0, vy: 0,
+            color,
+            name,
+            isMartini,
+            inCoop: false,
+            fleeSpeed: isMartini ? 4.5 : 2.2,
+            wanderSpeed: isMartini ? 1.8 : 0.8,
+            fleeRadius: isMartini ? 160 : 100,
+            erratic: isMartini ? 0.4 : 0.1,
+            wanderTimer: Math.random() * 120,
+            wanderAngle: Math.random() * Math.PI * 2,
+            animFrame: 0,
+            animTimer: 0,
+            dodgeCooldown: 0,
+            nearMissTimer: 0
+        };
+    }
+
+    // Input
+    const keys = {};
+    window.addEventListener('keydown', e => { keys[e.key] = true; e.preventDefault(); });
+    window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+    // Touch/click controls
+    let touchTarget = null;
+    canvas.addEventListener('pointerdown', e => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = W / rect.width;
+        const scaleY = H / rect.height;
+        touchTarget = {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    });
+    canvas.addEventListener('pointermove', e => {
+        if (touchTarget) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = W / rect.width;
+            const scaleY = H / rect.height;
+            touchTarget = {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        }
+    });
+    canvas.addEventListener('pointerup', () => { touchTarget = null; });
+    canvas.addEventListener('pointercancel', () => { touchTarget = null; });
+
+    function updatePlayer() {
+        let dx = 0, dy = 0;
+
+        if (keys['ArrowLeft'] || keys['a'] || keys['A']) dx -= 1;
+        if (keys['ArrowRight'] || keys['d'] || keys['D']) dx += 1;
+        if (keys['ArrowUp'] || keys['w'] || keys['W']) dy -= 1;
+        if (keys['ArrowDown'] || keys['s'] || keys['S']) dy += 1;
+
+        if (touchTarget) {
+            const tdx = touchTarget.x - (player.x + player.w/2);
+            const tdy = touchTarget.y - (player.y + player.h/2);
+            const dist = Math.sqrt(tdx*tdx + tdy*tdy);
+            if (dist > 8) {
+                dx = tdx / dist;
+                dy = tdy / dist;
+            }
+        }
+
+        const len = Math.sqrt(dx*dx + dy*dy);
+        if (len > 0) {
+            player.vx = (dx / len) * player.speed;
+            player.vy = (dy / len) * player.speed;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                player.facing = dx > 0 ? 'right' : 'left';
+            } else {
+                player.facing = dy > 0 ? 'down' : 'up';
+            }
+        } else {
+            player.vx *= 0.7;
+            player.vy *= 0.7;
+        }
+
+        player.x += player.vx;
+        player.y += player.vy;
+        player.x = Math.max(0, Math.min(W - player.w, player.x));
+        player.y = Math.max(0, Math.min(H - player.h, player.y));
+    }
+
+    function updateChicken(c) {
+        if (c.inCoop) return;
+
+        const cx = c.x + c.w/2;
+        const cy = c.y + c.h/2;
+        const px = player.x + player.w/2;
+        const py = player.y + player.h/2;
+        const dx = cx - px;
+        const dy = cy - py;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        c.animTimer++;
+        if (c.animTimer > 8) { c.animTimer = 0; c.animFrame = (c.animFrame + 1) % 4; }
+        if (c.dodgeCooldown > 0) c.dodgeCooldown--;
+        if (c.nearMissTimer > 0) c.nearMissTimer--;
+
+        // Flee from player
+        if (dist < c.fleeRadius) {
+            const fleeDx = dx / dist;
+            const fleeDy = dy / dist;
+
+            // Martini special: erratic dodging
+            let ex = 0, ey = 0;
+            if (c.isMartini) {
+                // Sudden direction changes
+                if (c.dodgeCooldown <= 0 && dist < 80) {
+                    c.dodgeCooldown = 30 + Math.random() * 20;
+                    const dodgeAngle = Math.atan2(fleeDy, fleeDx) + (Math.random() > 0.5 ? 1 : -1) * (Math.PI * 0.4 + Math.random() * 0.4);
+                    ex = Math.cos(dodgeAngle) * 3;
+                    ey = Math.sin(dodgeAngle) * 3;
+                }
+                // General erratic movement
+                ex += (Math.random() - 0.5) * c.erratic * 6;
+                ey += (Math.random() - 0.5) * c.erratic * 6;
+
+                // Near miss detection for Martini
+                if (dist < 50 && dist > 25 && c.nearMissTimer <= 0) {
+                    c.nearMissTimer = 120;
+                    bubble = {
+                        text: "Get over here Martini!",
+                        x: px,
+                        y: py - 50,
+                        timer: 90
+                    };
+                }
+            }
+
+            const speed = c.fleeSpeed * (1 + (c.fleeRadius - dist) / c.fleeRadius * 0.5);
+            c.vx = fleeDx * speed + ex;
+            c.vy = fleeDy * speed + ey;
+        } else {
+            // Wander
+            c.wanderTimer--;
+            if (c.wanderTimer <= 0) {
+                c.wanderTimer = 60 + Math.random() * 120;
+                c.wanderAngle = Math.random() * Math.PI * 2;
+                if (c.isMartini) {
+                    // Martini tends to wander away from coop
+                    const toCoop = Math.atan2((COOP.y + COOP.h/2) - cy, (COOP.x + COOP.w/2) - cx);
+                    c.wanderAngle = toCoop + Math.PI + (Math.random() - 0.5) * 1.5;
+                }
+            }
+            const wvx = Math.cos(c.wanderAngle) * c.wanderSpeed;
+            const wvy = Math.sin(c.wanderAngle) * c.wanderSpeed;
+            c.vx += (wvx - c.vx) * 0.05;
+            c.vy += (wvy - c.vy) * 0.05;
+
+            // Random stops
+            if (Math.random() < 0.005) {
+                c.vx = 0;
+                c.vy = 0;
+                c.wanderTimer = 30 + Math.random() * 60;
+            }
+        }
+
+        // Apply velocity with friction
+        c.x += c.vx;
+        c.y += c.vy;
+        c.vx *= 0.92;
+        c.vy *= 0.92;
+
+        // Bounce off walls
+        if (c.x < 0) { c.x = 0; c.vx = Math.abs(c.vx); c.wanderAngle = Math.random() * Math.PI - Math.PI/2; }
+        if (c.x > W - c.w) { c.x = W - c.w; c.vx = -Math.abs(c.vx); c.wanderAngle = Math.PI + (Math.random() - 0.5); }
+        if (c.y < 0) { c.y = 0; c.vy = Math.abs(c.vy); c.wanderAngle = Math.PI/2 + (Math.random() - 0.5); }
+        if (c.y > H - c.h) { c.y = H - c.h; c.vy = -Math.abs(c.vy); c.wanderAngle = -Math.PI/2 + (Math.random() - 0.5); }
+
+        // Check if in coop
+        if (cx > COOP.x && cx < COOP.x + COOP.w && cy > COOP.y && cy < COOP.y + COOP.h) {
+            // Need player nearby to "lock" them in
+            const pDistToCoop = Math.sqrt(
+                Math.pow(px - (COOP.x + COOP.w/2), 2) +
+                Math.pow(py - (COOP.y + COOP.h/2), 2)
+            );
+            if (pDistToCoop < 150) {
+                c.inCoop = true;
+                c.x = COOP.x + 15 + Math.random() * (COOP.w - 50);
+                c.y = COOP.y + 15 + Math.random() * (COOP.h - 50);
+                c.vx = 0;
+                c.vy = 0;
+                coopedCount++;
+                document.getElementById('count').textContent = coopedCount;
+
+                if (coopedCount === chickens.length) {
+                    gameWon = true;
+                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                    document.getElementById('winTime').textContent = `Time: ${elapsed}s`;
+                    document.getElementById('winScreen').classList.add('show');
+                }
+            }
+        }
+    }
+
+    // Drawing
+    function drawGrass() {
+        ctx.fillStyle = '#4a8c2a';
+        ctx.fillRect(0, 0, W, H);
+
+        // Grass texture
+        ctx.fillStyle = '#3d7a22';
+        for (let i = 0; i < 200; i++) {
+            const gx = (i * 137.5) % W;
+            const gy = (i * 97.3) % H;
+            ctx.fillRect(gx, gy, 3, 8);
+        }
+        ctx.fillStyle = '#5a9c35';
+        for (let i = 0; i < 150; i++) {
+            const gx = (i * 173.1) % W;
+            const gy = (i * 113.7) % H;
+            ctx.fillRect(gx, gy, 2, 6);
+        }
+
+        // Fence around edges
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(2, 2, W-4, H-4);
+
+        // Fence posts
+        ctx.fillStyle = '#8B4513';
+        for (let x = 0; x < W; x += 50) {
+            ctx.fillRect(x, 0, 6, 10);
+            ctx.fillRect(x, H-10, 6, 10);
+        }
+        for (let y = 0; y < H; y += 50) {
+            ctx.fillRect(0, y, 10, 6);
+            ctx.fillRect(W-10, y, 10, 6);
+        }
+    }
+
+    function drawCoop() {
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillRect(COOP.x + 5, COOP.y + 5, COOP.w, COOP.h);
+
+        // Coop base
+        ctx.fillStyle = '#8B6914';
+        ctx.fillRect(COOP.x, COOP.y, COOP.w, COOP.h);
+
+        // Coop walls
+        ctx.strokeStyle = '#6B4914';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(COOP.x, COOP.y, COOP.w, COOP.h);
+
+        // Horizontal planks
+        for (let y = COOP.y + 20; y < COOP.y + COOP.h; y += 20) {
+            ctx.beginPath();
+            ctx.moveTo(COOP.x, y);
+            ctx.lineTo(COOP.x + COOP.w, y);
+            ctx.strokeStyle = '#7B5914';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        // Coop roof (triangle)
+        ctx.fillStyle = '#c0392b';
+        ctx.beginPath();
+        ctx.moveTo(COOP.x - 10, COOP.y);
+        ctx.lineTo(COOP.x + COOP.w / 2, COOP.y - 30);
+        ctx.lineTo(COOP.x + COOP.w + 10, COOP.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#922b21';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Door opening
+        ctx.fillStyle = '#5a3a0a';
+        ctx.fillRect(COOP.x, COOP.y + COOP.h - 35, 25, 35);
+
+        // "COOP" label
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('COOP', COOP.x + COOP.w/2, COOP.y - 35);
+        ctx.textAlign = 'left';
+    }
+
+    function drawPlayer() {
+        const px = player.x;
+        const py = player.y;
+
+        // Body (farmer)
+        ctx.fillStyle = '#2874A6';
+        ctx.fillRect(px + 6, py + 14, 20, 16);
+
+        // Head
+        ctx.fillStyle = '#F5CBA7';
+        ctx.beginPath();
+        ctx.arc(px + 16, py + 10, 9, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Hat
+        ctx.fillStyle = '#7D6608';
+        ctx.fillRect(px + 5, py + 1, 22, 6);
+        ctx.fillRect(px + 9, py - 3, 14, 6);
+
+        // Arms based on facing
+        ctx.fillStyle = '#F5CBA7';
+        if (player.facing === 'left') {
+            ctx.fillRect(px, py + 16, 8, 4);
+        } else if (player.facing === 'right') {
+            ctx.fillRect(px + 24, py + 16, 8, 4);
+        } else {
+            ctx.fillRect(px + 2, py + 16, 6, 4);
+            ctx.fillRect(px + 24, py + 16, 6, 4);
+        }
+
+        // Legs
+        ctx.fillStyle = '#6B4226';
+        ctx.fillRect(px + 8, py + 28, 6, 6);
+        ctx.fillRect(px + 18, py + 28, 6, 6);
+    }
+
+    function drawChicken(c) {
+        const cx = c.x;
+        const cy = c.y;
+        const bobY = c.inCoop ? 0 : Math.sin(c.animFrame * Math.PI / 2) * 2;
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(cx + 12, cy + 24, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Legs
+        ctx.strokeStyle = '#D4A017';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx + 8, cy + 18 + bobY);
+        ctx.lineTo(cx + 6, cy + 23);
+        ctx.moveTo(cx + 16, cy + 18 + bobY);
+        ctx.lineTo(cx + 18, cy + 23);
+        ctx.stroke();
+
+        // Body
+        ctx.fillStyle = c.color;
+        ctx.beginPath();
+        ctx.ellipse(cx + 12, cy + 12 + bobY, 11, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Wing
+        const wingColor = c.isMartini ? '#333' : (c.color === '#d4a76a' ? '#c49a5a' : '#e0e0d0');
+        ctx.fillStyle = wingColor;
+        ctx.beginPath();
+        ctx.ellipse(cx + 6, cy + 13 + bobY, 6, 5, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Head
+        ctx.fillStyle = c.color;
+        ctx.beginPath();
+        ctx.arc(cx + 18, cy + 6 + bobY, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eye
+        ctx.fillStyle = c.isMartini ? '#ff3333' : '#111';
+        ctx.beginPath();
+        ctx.arc(cx + 20, cy + 5 + bobY, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Beak
+        ctx.fillStyle = '#E67E22';
+        ctx.beginPath();
+        ctx.moveTo(cx + 23, cy + 6 + bobY);
+        ctx.lineTo(cx + 28, cy + 7 + bobY);
+        ctx.lineTo(cx + 23, cy + 9 + bobY);
+        ctx.closePath();
+        ctx.fill();
+
+        // Comb (red thing on head)
+        ctx.fillStyle = '#E74C3C';
+        ctx.beginPath();
+        ctx.arc(cx + 18, cy + 1 + bobY, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 15, cy + 2 + bobY, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Wattle
+        ctx.fillStyle = '#E74C3C';
+        ctx.beginPath();
+        ctx.ellipse(cx + 22, cy + 10 + bobY, 2, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Name tag for Martini
+        if (c.isMartini && !c.inCoop) {
+            ctx.fillStyle = '#ff4444';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('MARTINI', cx + 12, cy - 6);
+            ctx.textAlign = 'left';
+        }
+    }
+
+    function drawBubble() {
+        if (!bubble || bubble.timer <= 0) return;
+
+        const alpha = Math.min(1, bubble.timer / 20);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        const text = bubble.text;
+        ctx.font = 'bold 15px sans-serif';
+        const metrics = ctx.measureText(text);
+        const tw = metrics.width + 20;
+        const th = 30;
+        const bx = Math.max(10, Math.min(W - tw - 10, bubble.x - tw/2));
+        const by = Math.max(10, bubble.y - th);
+
+        // Bubble background
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.roundRect(bx, by, tw, th, 8);
+        ctx.fill();
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Tail
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(bx + tw/2 - 6, by + th);
+        ctx.lineTo(bx + tw/2, by + th + 10);
+        ctx.lineTo(bx + tw/2 + 6, by + th);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Text
+        ctx.fillStyle = '#c0392b';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, bx + tw/2, by + th/2);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+
+        ctx.restore();
+
+        bubble.timer--;
+        bubble.y -= 0.3;
+    }
+
+    function drawCoopedChickens() {
+        // Draw cooped chickens pecking around inside
+        chickens.forEach(c => {
+            if (c.inCoop) {
+                drawChicken(c);
+            }
+        });
+    }
+
+    // Game loop
+    function update() {
+        if (gameWon) return;
+        updatePlayer();
+        chickens.forEach(updateChicken);
+    }
+
+    function draw() {
+        drawGrass();
+        drawCoop();
+        drawCoopedChickens();
+
+        // Draw free chickens
+        chickens.forEach(c => {
+            if (!c.inCoop) drawChicken(c);
+        });
+
+        drawPlayer();
+        drawBubble();
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function restartGame() {
+        initGame();
+    }
+
+    initGame();
+    gameLoop();
+    </script>
+</body>
+</html>
