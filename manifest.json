@@ -1,0 +1,22 @@
+{
+    "name": "The Fart Button",
+    "short_name": "Fart Button",
+    "description": "Press the button. Cycle through 12 epic fart sounds!",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#1a0a2e",
+    "theme_color": "#1a0a2e",
+    "icons": [
+        {
+            "src": "icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

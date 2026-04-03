@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fart Sound Button</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Fart Button">
+    <meta name="theme-color" content="#1a0a2e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>The Fart Button</title>
     <style>
         * {
             margin: 0;
@@ -11,51 +18,57 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
         body {
-            min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             background: linear-gradient(135deg, #1a0a2e, #2d1b4e, #1a2a1a);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
 
         h1 {
             color: #7cfc00;
-            font-size: 2.5rem;
-            margin-bottom: 10px;
+            font-size: clamp(1.6rem, 6vw, 2.5rem);
+            margin-bottom: 6px;
             text-shadow: 0 0 20px rgba(124, 252, 0, 0.5);
         }
 
         .subtitle {
             color: #a0a0a0;
-            font-size: 1rem;
-            margin-bottom: 40px;
+            font-size: clamp(0.8rem, 3vw, 1rem);
+            margin-bottom: clamp(15px, 4vh, 40px);
         }
 
         .fart-counter {
             color: #ffcc00;
-            font-size: 1.2rem;
-            margin-bottom: 20px;
+            font-size: clamp(0.9rem, 3.5vw, 1.2rem);
+            margin-bottom: 12px;
         }
 
         .fart-name {
             color: #ff6ec7;
-            font-size: 1.4rem;
+            font-size: clamp(1.1rem, 4vw, 1.4rem);
             font-weight: bold;
-            margin-bottom: 30px;
+            margin-bottom: clamp(15px, 3vh, 30px);
             min-height: 2em;
             text-align: center;
             transition: opacity 0.2s;
+            padding: 0 20px;
         }
 
         .fart-button {
-            width: 220px;
-            height: 220px;
+            width: clamp(160px, 45vw, 220px);
+            height: clamp(160px, 45vw, 220px);
             border-radius: 50%;
-            border: 6px solid #7cfc00;
+            border: 5px solid #7cfc00;
             background: radial-gradient(circle at 35% 35%, #4a2a0a, #2a1a0a);
             color: #7cfc00;
             font-size: 2rem;
@@ -66,40 +79,36 @@
             position: relative;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
-        }
-
-        .fart-button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 50px rgba(124, 252, 0, 0.5), inset 0 0 30px rgba(0, 0, 0, 0.5);
+            -webkit-touch-callout: none;
         }
 
         .fart-button:active {
-            transform: scale(0.95);
+            transform: scale(0.93);
             border-color: #ff6ec7;
             box-shadow: 0 0 60px rgba(255, 110, 199, 0.6), inset 0 0 30px rgba(0, 0, 0, 0.5);
         }
 
         .fart-button .emoji {
-            font-size: 4rem;
+            font-size: clamp(3rem, 10vw, 4rem);
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 2px;
         }
 
         .fart-button .label {
-            font-size: 1.2rem;
+            font-size: clamp(0.9rem, 3vw, 1.2rem);
             text-transform: uppercase;
             letter-spacing: 3px;
         }
 
         .progress-bar {
             display: flex;
-            gap: 8px;
-            margin-top: 40px;
+            gap: clamp(4px, 1.5vw, 8px);
+            margin-top: clamp(20px, 4vh, 40px);
         }
 
         .progress-dot {
-            width: 18px;
-            height: 18px;
+            width: clamp(12px, 3.5vw, 18px);
+            height: clamp(12px, 3.5vw, 18px);
             border-radius: 50%;
             background: #333;
             border: 2px solid #555;
@@ -118,7 +127,6 @@
             border-color: #4a8b4a;
         }
 
-        /* Gas cloud particles */
         .gas-cloud {
             position: fixed;
             pointer-events: none;
@@ -151,18 +159,40 @@
 
         .stats {
             position: fixed;
-            bottom: 20px;
+            bottom: max(20px, env(safe-area-inset-bottom));
             color: #666;
             font-size: 0.85rem;
+        }
+
+        .install-prompt {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(124, 252, 0, 0.15);
+            border: 1px solid #7cfc00;
+            color: #7cfc00;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: none;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
     </style>
 </head>
 <body>
+    <div class="install-prompt" id="installPrompt" onclick="installApp()">
+        Tap to install as app
+    </div>
+
     <h1>The Fart Button</h1>
     <p class="subtitle">Press the button. You know you want to.</p>
     <div class="fart-counter">Fart #<span id="counter">1</span> of 12</div>
     <div class="fart-name" id="fartName">Ready to rip...</div>
-    <button class="fart-button" id="fartBtn" onclick="doFart()">
+    <button class="fart-button" id="fartBtn">
         <span class="emoji">💨</span>
         <span class="label">FART</span>
     </button>
@@ -170,7 +200,62 @@
     <div class="stats" id="stats">Total farts: 0</div>
 
     <script>
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // --- Service Worker Registration ---
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+
+        // --- Install Prompt ---
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installPrompt').style.display = 'block';
+        });
+
+        function installApp() {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(() => {
+                deferredPrompt = null;
+                document.getElementById('installPrompt').style.display = 'none';
+            });
+        }
+
+        // --- Auto-generate icons if missing ---
+        function generateIcon(size) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#1a0a2e';
+            ctx.fillRect(0, 0, size, size);
+            const cx = size / 2, cy = size / 2, r = size * 0.38;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fillStyle = '#2a1a0a';
+            ctx.fill();
+            ctx.lineWidth = size * 0.03;
+            ctx.strokeStyle = '#7cfc00';
+            ctx.stroke();
+            ctx.font = `${size * 0.35}px serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('\uD83D\uDCA8', cx, cy);
+            return canvas.toDataURL('image/png');
+        }
+
+        // Set apple-touch-icon dynamically
+        const touchIcon = document.querySelector('link[rel="apple-touch-icon"]');
+        if (touchIcon) touchIcon.href = generateIcon(192);
+
+        // --- Audio Engine ---
+        let audioCtx;
+        function getAudioCtx() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            return audioCtx;
+        }
 
         const fartSounds = [
             {
@@ -257,32 +342,33 @@
         updateProgress();
 
         function makeFart({ freq, duration, type, lfoFreq, lfoGain, endFreq, gain = 0.3 }) {
-            const now = audioCtx.currentTime;
+            const ctx = getAudioCtx();
+            const now = ctx.currentTime;
 
-            const osc = audioCtx.createOscillator();
+            const osc = ctx.createOscillator();
             osc.type = type;
             osc.frequency.setValueAtTime(freq, now);
             osc.frequency.linearRampToValueAtTime(endFreq, now + duration);
 
-            const lfo = audioCtx.createOscillator();
+            const lfo = ctx.createOscillator();
             lfo.frequency.value = lfoFreq;
-            const lfoGainNode = audioCtx.createGain();
+            const lfoGainNode = ctx.createGain();
             lfoGainNode.gain.value = lfoGain;
             lfo.connect(lfoGainNode);
             lfoGainNode.connect(osc.frequency);
 
-            const gainNode = audioCtx.createGain();
+            const gainNode = ctx.createGain();
             gainNode.gain.setValueAtTime(gain, now);
             gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
-            const filter = audioCtx.createBiquadFilter();
+            const filter = ctx.createBiquadFilter();
             filter.type = 'lowpass';
             filter.frequency.setValueAtTime(1500, now);
             filter.frequency.linearRampToValueAtTime(300, now + duration);
 
             osc.connect(filter);
             filter.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+            gainNode.connect(ctx.destination);
 
             osc.start(now);
             lfo.start(now);
@@ -291,30 +377,31 @@
         }
 
         function makeNoise({ duration, filterFreq, filterEnd, gain }) {
-            const now = audioCtx.currentTime;
-            const bufferSize = audioCtx.sampleRate * duration;
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const ctx = getAudioCtx();
+            const now = ctx.currentTime;
+            const bufferSize = ctx.sampleRate * duration;
+            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) {
                 data[i] = Math.random() * 2 - 1;
             }
 
-            const source = audioCtx.createBufferSource();
+            const source = ctx.createBufferSource();
             source.buffer = buffer;
 
-            const filter = audioCtx.createBiquadFilter();
+            const filter = ctx.createBiquadFilter();
             filter.type = 'bandpass';
             filter.frequency.setValueAtTime(filterFreq, now);
             filter.frequency.linearRampToValueAtTime(filterEnd, now + duration);
             filter.Q.value = 2;
 
-            const gainNode = audioCtx.createGain();
+            const gainNode = ctx.createGain();
             gainNode.gain.setValueAtTime(gain, now);
             gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
             source.connect(filter);
             filter.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+            gainNode.connect(ctx.destination);
 
             source.start(now);
             source.stop(now + duration);
@@ -364,14 +451,14 @@
         }
 
         function doFart() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-
             const fart = fartSounds[currentFart];
-            const nameEl = document.getElementById('fartName');
-            nameEl.textContent = fart.name;
+            document.getElementById('fartName').textContent = fart.name;
 
             fart.play();
             spawnGasClouds();
+
+            // Haptic feedback on supported devices
+            if (navigator.vibrate) navigator.vibrate(50);
 
             const btn = document.getElementById('fartBtn');
             btn.classList.remove('shake');
@@ -384,6 +471,19 @@
             currentFart = (currentFart + 1) % 12;
             updateProgress();
         }
+
+        // Use touchend for faster response on mobile, with fallback to click
+        const fartBtn = document.getElementById('fartBtn');
+        let touched = false;
+        fartBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            touched = true;
+            doFart();
+            setTimeout(() => touched = false, 300);
+        });
+        fartBtn.addEventListener('click', () => {
+            if (!touched) doFart();
+        });
     </script>
 </body>
 </html>
